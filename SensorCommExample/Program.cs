@@ -28,10 +28,10 @@ namespace SensorCommExample
         ModbusSerialMaster _master;
         byte _slaveId;
 
-        public ModbusUnit(ModbusSerialMaster master, byte slave_id)
+        public ModbusUnit(ModbusSerialMaster master, byte slaveId)
         {
             _master = master;
-            _slaveId = slave_id;
+            _slaveId = slaveId;
         }
 
         private ushort[] GetPackRegs(ushort[] registers)
@@ -107,7 +107,17 @@ namespace SensorCommExample
     {
         static void Main(string[] args)
         {
-            
+            byte search_slave_id_to;
+
+            if (args.Length == 0)
+            {
+                search_slave_id_to = 16;  // 247 max
+            }
+            else
+            {
+                search_slave_id_to = (byte)int.Parse(args[0]);
+            }
+
             var com_ports = SerialPort.GetPortNames().OrderBy(n=>n);
             Console.WriteLine("Found com ports: " + "["+ string.Join(", ", com_ports) + "]");
 
@@ -120,7 +130,6 @@ namespace SensorCommExample
                 using(var master = ModbusUnit.CreateModbusMaster(com_port))
                 {
                     var units = new List<ModbusUnit>();
-                    byte search_slave_id_to = 16;  // 247 max
                     for(byte slave_id = 1; slave_id < search_slave_id_to + 1; slave_id++)
                     {
                         Console.WriteLine("Searching " + com_port + " " + slave_id);
