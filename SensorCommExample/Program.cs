@@ -136,7 +136,8 @@ namespace SensorCommExample
                         try
                         {
                             var unit = new ModbusUnit(master, slave_id);
-                            Debug.Assert((byte)(UInt16)unit.ReadVariable("SlaveAddress") == slave_id);
+                            byte read_slave_id = (byte)(UInt16)unit.ReadVariable("SlaveAddress");
+                            Debug.Assert(read_slave_id == slave_id);
                             units.Add(unit);
                         }
                         catch(TimeoutException)
