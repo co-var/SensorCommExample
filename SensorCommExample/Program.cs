@@ -17,16 +17,16 @@ namespace SensorCommExample
 
     public class ModbusUnit
     {
-        Dictionary<string, ModbusVariable> variables = new Dictionary<string, ModbusVariable>
+        readonly Dictionary<string, ModbusVariable> _variables = new Dictionary<string, ModbusVariable>
         {
             {"SlaveAddress", new ModbusVariable{Address=0X0800, Typ="UInt16", Count=1 } },
             {"TemperatureDet", new ModbusVariable{Address=0X0404, Typ="Single", Count=2 } }
         };
 
-        bool _lsbLowReg = true;
+        readonly bool _lsbLowReg = true;
 
-        ModbusSerialMaster _master;
-        byte _slaveId;
+        readonly ModbusSerialMaster _master;
+        readonly byte _slaveId;
 
         public ModbusUnit(ModbusSerialMaster master, byte slaveId)
         {
@@ -42,42 +42,41 @@ namespace SensorCommExample
                 reg = registers;
             else
                 reg = registers.AsEnumerable().Reverse().ToArray();
+
             return reg;
         }
 
-        private byte[] GetPackBytes(ushort[] pack_regs)
+        private byte[] GetPackBytes(ushort[] packRegs)
         {
             var byts = new List<byte>();
 
-            foreach (var pack_reg in pack_regs)
-                byts.AddRange(BitConverter.GetBytes(pack_reg));
+            foreach (var packReg in packRegs)
+                byts.AddRange(BitConverter.GetBytes(packReg));
 
             return byts.ToArray();
         }
 
-        public object ReadVariableAt(ushort address, string typ, ushort reg_count)
+        public object ReadVariableAt(ushort address, string typ, ushort regCount)
         {
-            var registers = _master.ReadHoldingRegisters(_slaveId, address, reg_count);
-            var pack_regs = GetPackRegs(registers);
-            var pack_bytes = GetPackBytes(pack_regs);
+            var registers = _master.ReadHoldingRegisters(_slaveId, address, regCount);
+            var packRegs = GetPackRegs(registers);
+            var packBytes = GetPackBytes(packRegs);
 
             object variable;
             if(typ == "UInt16")
-                variable = BitConverter.ToUInt16(pack_bytes);
+                variable = BitConverter.ToUInt16(packBytes);
             else if(typ == "Single")
-                variable = BitConverter.ToSingle(pack_bytes);
+                variable = BitConverter.ToSingle(packBytes);
             else
-                throw new ArgumentException("Not supported fmt!");
+                throw new ArgumentException("Not supported type!");
 
             return variable;
         }
 
         public object ReadVariable(string name)
         {
-            var address = variables[name].Address;
-            var typ = variables[name].Typ;
-            var count = variables[name].Count;
-            return ReadVariableAt(address, typ, count);
+            var variable = _variables[name];
+            return ReadVariableAt(variable.Address, variable.Typ, variable.Count);
         }
 
         public override string ToString()
@@ -85,19 +84,19 @@ namespace SensorCommExample
             return _master + ", " + _slaveId;
         }
 
-        public static ModbusSerialMaster CreateModbusMaster(string port_name)
+        public static ModbusSerialMaster CreateModbusMaster(string portName)
         {
-            var port = new SerialPort(port_name);
-            port.BaudRate = 9600;
-            port.DataBits = 8;
-            port.Parity = Parity.Even;
-            port.StopBits = StopBits.One;
+            var port = new SerialPort(portName)
+            {
+                BaudRate = 9600, DataBits = 8, Parity = Parity.Even, StopBits = StopBits.One
+            };
             port.Open();
             var master = ModbusSerialMaster.CreateRtu(port);
             // master.Transport.CheckFrame = True
-            master.Transport.ReadTimeout = 50;  // Without this line, reading halts after tens of readings. Using NModbus4.dll.
+            master.Transport.ReadTimeout = 50;  // Without this line, reading halts after tens of readings
             // Connecting "New Laser" Sensor (Model006 Debug)
             // master.Transport.WriteTimeout = 50
+            
             return master;
         }
 
@@ -107,37 +106,37 @@ namespace SensorCommExample
     {
         static void Main(string[] args)
         {
-            byte search_slave_id_to;
+            byte searchSlaveIdTo;
 
             if (args.Length == 0)
             {
-                search_slave_id_to = 16;  // 247 max
+                searchSlaveIdTo = 16;  // 247 max
             }
             else
             {
-                search_slave_id_to = (byte)int.Parse(args[0]);
+                searchSlaveIdTo = (byte)int.Parse(args[0]);
             }
 
-            var com_ports = SerialPort.GetPortNames().OrderBy(n=>n);
-            Console.WriteLine("Found com ports: " + "["+ string.Join(", ", com_ports) + "]");
+            var comPorts = SerialPort.GetPortNames().OrderBy(n=>n).ToList();
+            Console.WriteLine("Found com ports: " + "["+ string.Join(", ", comPorts) + "]");
 
-            var readings_of_units_of_ports = new List<List<List<object>>>();
-            foreach(var com_port in com_ports)
+            var readingsOfUnitsOfPorts = new List<List<List<object>>>();
+            foreach(var comPort in comPorts)
             {
-                Console.WriteLine("Searching " + com_port);
-                var readings_of_units = new List<List<object>>();
+                Console.WriteLine("Searching " + comPort);
+                var readingsOfUnitsOfPort = new List<List<object>>();
 
-                using(var master = ModbusUnit.CreateModbusMaster(com_port))
+                using(var master = ModbusUnit.CreateModbusMaster(comPort))
                 {
                     var units = new List<ModbusUnit>();
-                    for(byte slave_id = 1; slave_id < search_slave_id_to + 1; slave_id++)
+                    for(byte slaveId = 1; slaveId < searchSlaveIdTo + 1; slaveId++)
                     {
-                        Console.WriteLine("Searching " + com_port + " " + slave_id);
+                        Console.WriteLine("Searching " + comPort + " " + slaveId);
                         try
                         {
-                            var unit = new ModbusUnit(master, slave_id);
-                            byte read_slave_id = (byte)(UInt16)unit.ReadVariable("SlaveAddress");
-                            Debug.Assert(read_slave_id == slave_id);
+                            var unit = new ModbusUnit(master, slaveId);
+                            byte readSlaveId = (byte)(UInt16)unit.ReadVariable("SlaveAddress");
+                            Debug.Assert(readSlaveId == slaveId);
                             units.Add(unit);
                         }
                         catch(TimeoutException)
@@ -145,34 +144,34 @@ namespace SensorCommExample
                         }
                     }
 
-                    Console.WriteLine("Found Units on " + com_port + ": "  + "[" + string.Join(", ", units.Select(u=>u.ToString())) + "]");
+                    Console.WriteLine("Found Units on " + comPort + ": "  + "[" + string.Join(", ", units.Select(u=>u.ToString())) + "]");
 
                     foreach(var unit in units)
                     {
-                        var readings_of_unit_of_port = new List<object>();
-                        var start_time = DateTime.Now;
+                        var readingsOfUnitOfPort = new List<object>();
+                        var startTime = DateTime.Now;
 
                         for(int i = 0; i < 100; i++)
                         {
                             var reading = unit.ReadVariable("TemperatureDet");
-                            readings_of_unit_of_port.Add(reading);
+                            readingsOfUnitOfPort.Add(reading);
                             Console.WriteLine(i+ ": " + reading);
                         }
 
-                        var used_time = DateTime.Now - start_time;
-                        Console.WriteLine("Time used: " + used_time);
-                        readings_of_units.Add(readings_of_unit_of_port);
+                        var usedTime = DateTime.Now - startTime;
+                        Console.WriteLine("Time used: " + usedTime);
+                        readingsOfUnitsOfPort.Add(readingsOfUnitOfPort);
                     }
                 }
 
-                readings_of_units_of_ports.Add(readings_of_units);
+                readingsOfUnitsOfPorts.Add(readingsOfUnitsOfPort);
             }
 
-            var readings_of_all_units = new List<List<object>>();
-            foreach(var readings_of_units_of_port in readings_of_units_of_ports)
+            var readingsOfAllUnits = new List<List<object>>();
+            foreach(var readingsOfUnitsOfPort in readingsOfUnitsOfPorts)
             {
-                foreach(var readings_of_unit_of_port in readings_of_units_of_port)
-                    readings_of_all_units.Add(readings_of_unit_of_port);
+                foreach(var readingsOfUnitOfPort in readingsOfUnitsOfPort)
+                    readingsOfAllUnits.Add(readingsOfUnitOfPort);
             }
 
             Console.WriteLine("Done Successfully.");
