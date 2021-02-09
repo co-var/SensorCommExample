@@ -20,6 +20,7 @@ namespace SensorCommExample
         readonly Dictionary<string, ModbusVariable> _variables = new Dictionary<string, ModbusVariable>
         {
             {"SlaveAddress", new ModbusVariable{Address=0X0800, Typ="UInt16", Count=1 } },
+            {"TemperatureTarget", new ModbusVariable{Address=0X0400, Typ="Single", Count=2 } },
             {"TemperatureDet", new ModbusVariable{Address=0X0404, Typ="Single", Count=2 } }
         };
 
@@ -27,6 +28,8 @@ namespace SensorCommExample
 
         readonly ModbusSerialMaster _master;
         readonly byte _slaveId;
+
+        public byte SlaveId => _slaveId;
 
         public ModbusUnit(ModbusSerialMaster master, byte slaveId)
         {
@@ -102,6 +105,14 @@ namespace SensorCommExample
 
     }
 
+    public class Record
+    {
+        public int Index { set; get; }
+        public string Unit { set; get; }
+        public string VariableName { set; get; }
+        public object VariableValue { set; get; }
+    }
+
     class Program
     {
         static void Main(string[] args)
@@ -120,11 +131,11 @@ namespace SensorCommExample
             var comPorts = SerialPort.GetPortNames().OrderBy(n=>n).ToList();
             Console.WriteLine("Found com ports: " + "["+ string.Join(", ", comPorts) + "]");
 
-            var readingsOfUnitsOfPorts = new List<List<List<object>>>();
+            var data = new List<Record>();
+
             foreach(var comPort in comPorts)
             {
                 Console.WriteLine("Searching " + comPort);
-                var readingsOfUnitsOfPort = new List<List<object>>();
 
                 using(var master = ModbusUnit.CreateModbusMaster(comPort))
                 {
@@ -148,30 +159,27 @@ namespace SensorCommExample
 
                     foreach(var unit in units)
                     {
-                        var readingsOfUnitOfPort = new List<object>();
                         var startTime = DateTime.Now;
 
                         for(int i = 0; i < 100; i++)
                         {
-                            var reading = unit.ReadVariable("TemperatureDet");
-                            readingsOfUnitOfPort.Add(reading);
-                            Console.WriteLine(i+ ": " + reading);
+                            var names = new string[]{ "TemperatureDet", "TemperatureTarget"};
+                            foreach(var name in names)
+                            {
+                                var reading = unit.ReadVariable(name);
+
+                                // Print data
+                                Console.WriteLine(i + ", " + name + ", " + reading);
+
+                                // Add data the the database
+                                data.Add(new Record { Index = i, Unit = comPort + "-" + unit.SlaveId, VariableName = name, VariableValue = reading });
+                            }
                         }
 
                         var usedTime = DateTime.Now - startTime;
                         Console.WriteLine("Time used: " + usedTime);
-                        readingsOfUnitsOfPort.Add(readingsOfUnitOfPort);
                     }
                 }
-
-                readingsOfUnitsOfPorts.Add(readingsOfUnitsOfPort);
-            }
-
-            var readingsOfAllUnits = new List<List<object>>();
-            foreach(var readingsOfUnitsOfPort in readingsOfUnitsOfPorts)
-            {
-                foreach(var readingsOfUnitOfPort in readingsOfUnitsOfPort)
-                    readingsOfAllUnits.Add(readingsOfUnitOfPort);
             }
 
             Console.WriteLine("Done Successfully.");
