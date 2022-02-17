@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.IO;
 using System.IO.Ports;
 using System.Linq;
 using Modbus.Device;
@@ -138,48 +139,57 @@ namespace SensorCommExample
             {
                 Console.WriteLine("Searching " + comPort);
 
-                using(var master = ModbusUnit.CreateModbusMaster(comPort))
+                try
                 {
-                    var units = new List<ModbusUnit>();
-                    for(byte slaveId = 1; slaveId < searchSlaveIdTo + 1; slaveId++)
+                    using(var master = ModbusUnit.CreateModbusMaster(comPort))
                     {
-                        Console.WriteLine("Searching " + comPort + " " + slaveId);
-                        try
+                        var units = new List<ModbusUnit>();
+                        for(byte slaveId = 1; slaveId < searchSlaveIdTo + 1; slaveId++)
                         {
-                            var unit = new ModbusUnit(master, slaveId);
-                            byte readSlaveId = (byte)(UInt16)unit.ReadVariable("SlaveAddress");
-                            Debug.Assert(readSlaveId == slaveId);
-                            units.Add(unit);
-                        }
-                        catch(TimeoutException)
-                        {
-                        }
-                    }
-
-                    Console.WriteLine("Found Units on " + comPort + ": "  + "[" + string.Join(", ", units.Select(u=>u.ToString())) + "]");
-
-                    foreach(var unit in units)
-                    {
-                        var startTime = DateTime.Now;
-
-                        for(int i = 0; i < 100; i++)
-                        {
-                            var names = new string[]{ "TemperatureDet", "TemperatureTarget"};
-                            foreach(var name in names)
+                            Console.WriteLine("Searching " + comPort + " " + slaveId);
+                            try
                             {
-                                var reading = unit.ReadVariable(name);
-
-                                // Print data
-                                Console.WriteLine(i + ", " + name + ", " + reading);
-
-                                // Add data the the database
-                                data.Add(new Record { Index = i, Unit = comPort + "-" + unit.SlaveId, VariableName = name, VariableValue = reading });
+                                var unit = new ModbusUnit(master, slaveId);
+                                byte readSlaveId = (byte)(UInt16)unit.ReadVariable("SlaveAddress");
+                                Debug.Assert(readSlaveId == slaveId);
+                                units.Add(unit);
+                            }
+                            catch(TimeoutException)
+                            {
+                                Console.WriteLine($"Time out at slave ID {slaveId}");
                             }
                         }
 
-                        var usedTime = DateTime.Now - startTime;
-                        Console.WriteLine("Time used: " + usedTime);
+                        Console.WriteLine("Found Units on " + comPort + ": "  + "[" + string.Join(", ", units.Select(u=>u.ToString())) + "]");
+
+                        foreach(var unit in units)
+                        {
+                            var startTime = DateTime.Now;
+
+                            for(int i = 0; i < 100; i++)
+                            {
+                                var names = new string[]{ "TemperatureDet", "TemperatureTarget"};
+                                foreach(var name in names)
+                                {
+                                    var reading = unit.ReadVariable(name);
+
+                                    // Print data
+                                    Console.WriteLine(i + ", " + name + ", " + reading);
+
+                                    // Add data the the database
+                                    data.Add(new Record { Index = i, Unit = comPort + "-" + unit.SlaveId, VariableName = name, VariableValue = reading });
+                                }
+                            }
+
+                            var usedTime = DateTime.Now - startTime;
+                            Console.WriteLine("Time used: " + usedTime);
+                        }
                     }
+                }
+                catch(IOException)  // Without catching this exception, searching halts on openning for example COM4, 
+                                    // where COM4 is not an "actual" serial port connecting a unit.
+                {
+                    Console.WriteLine($"IO Exception on {comPort}");
                 }
             }
 
