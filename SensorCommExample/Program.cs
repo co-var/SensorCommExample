@@ -95,11 +95,12 @@ namespace SensorCommExample
             };
             port.Open();
             var master = ModbusSerialMaster.CreateRtu(port);
-            // master.Transport.CheckFrame = True
             master.Transport.ReadTimeout = 50;  // Without this line, reading halts after tens of readings
-            // Connecting "New Laser" Sensor (Model006 Debug)
-            // master.Transport.WriteTimeout = 50
-            
+                                                // Connecting "New Laser" Sensor (Model006 Debug)
+            master.Transport.WriteTimeout = 50; // Without this, reading halts after displaying for example "searching COM3 1",
+                                                // where COM3 is not an "actual" serial port connecting a unit.
+                                                // Connecting "New Laser" Sensor (Model006 Debug).
+
             return master;
         }
 
